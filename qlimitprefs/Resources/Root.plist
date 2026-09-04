@@ -64,7 +64,7 @@
 			<key>label</key>
 			<string>Inhibit Accessory Charging</string>
 			<key>default</key>
-			<true/>
+			<false/>
 			<key>PostNotification</key>
 			<string>me.qlimit/prefschanged</string>
 		</dict>
