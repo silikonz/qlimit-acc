@@ -46,6 +46,28 @@
 			<key>PostNotification</key>
 			<string>me.qlimit/prefschanged</string>
 		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Accessories</string>
+			<key>footerText</key>
+			<string>Set options for charging of accessories.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>defaults</key>
+			<string>me.qlimit</string>
+			<key>key</key>
+			<string>ShouldInhibitAccessoryCharging</string>
+			<key>label</key>
+			<string>Inhibit Accessory Charging</string>
+			<key>default</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>me.qlimit/prefschanged</string>
+		</dict>
 	</array>
 </dict>
 </plist>
