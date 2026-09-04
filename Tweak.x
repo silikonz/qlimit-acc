@@ -11,10 +11,13 @@ static CFStringRef const kQLimitAppID                    = CFSTR("me.qlimit");
 static CFStringRef const kQLimitPrefsUser                = CFSTR("mobile");
 static CFStringRef const kQLimitMaxLevelKey              = CFSTR("MaxChargingLevel");
 static CFStringRef const kQLimitSailDepthKey             = CFSTR("SailDepth");
+static CFStringRef const kQShouldInhibitAccessoryChargingKey = CFSTR("ShouldInhibitAccessoryCharging");
 static CFStringRef const kQLimitPrefsChangedNotification = CFSTR("me.qlimit/prefschanged");
 
 static const int kQLimitDefaultLevel     = 80;
 static const int kQLimitDefaultSailDepth = 5;
+static const BOOL kQLimitDefaultShouldInhibitAccessoryCharging = NO;
+
 
 
 #define QLIMIT_DEBUG 0
@@ -35,6 +38,8 @@ static const int kQLimitDefaultSailDepth = 5;
 
 static int _qlimitMaxChargingLevel = kQLimitDefaultLevel;
 static int _qlimitSailDepth = kQLimitDefaultSailDepth;
+static int _qlimitShouldInhibitAccessoryCharging = kQLimitDefaultShouldInhibitAccessoryCharging;
+
 
 static IONotificationPortRef gNotifyPort = NULL;
 static io_object_t gPowerNotification = IO_OBJECT_NULL;
@@ -63,6 +68,13 @@ static BOOL qlimit_isAdapterConnected(io_service_t service) {
     return NO;
 }
 
+static BOOL qlimit_isAccessoryConnected(void) {
+    uint8_t val = 0;
+    int32_t sz = sizeof(val);
+    if (smc_read_safe('AY1P', &val, &sz) != kIOReturnSuccess) return NO;
+    return val != 0;
+}
+
 // ---- Preferences ---------------------------------------------------------
 
 static int qlimit_intPrefValue(CFStringRef key, int defaultValue) {
@@ -72,10 +84,13 @@ static int qlimit_intPrefValue(CFStringRef key, int defaultValue) {
 
 static void qlimit_loadPreferences(void) {
     CFPreferencesSynchronize(kQLimitAppID, kQLimitPrefsUser, kCFPreferencesCurrentHost);
+
     _qlimitMaxChargingLevel = qlimit_intPrefValue(kQLimitMaxLevelKey, kQLimitDefaultLevel);
     _qlimitSailDepth = qlimit_intPrefValue(kQLimitSailDepthKey, kQLimitDefaultSailDepth);
 
-    QLog("Loaded Preferences: MaxLevel=%d, SailDepth=%d", _qlimitMaxChargingLevel, _qlimitSailDepth);
+    _qlimitShouldInhibitAccessoryCharging = qlimit_intPrefValue(kQShouldInhibitAccessoryChargingKey, kQLimitDefaultShouldInhibitAccessoryCharging);
+
+    QLog("Loaded Preferences: MaxLevel=%d, SailDepth=%d, accinhb=%s", _qlimitMaxChargingLevel, _qlimitSailDepth, _qlimitShouldInhibitAccessoryCharging ? "YES" : "NO");
 }
 
 // ---- Service Resolver ------------------------------
@@ -93,7 +108,7 @@ static io_service_t qlimit_getPowerService(void) {
 
 // ---- Control Primitives --------------------------------------------------
 
-static BOOL qlimit_isChargeInhibited() {
+static BOOL qlimit_isChargeInhibited(void) {
     uint8_t val = 0;
     int32_t sz = sizeof(val);
     if (smc_read_safe('CH0C', &val, &sz) != kIOReturnSuccess) return NO;
@@ -102,6 +117,18 @@ static BOOL qlimit_isChargeInhibited() {
 static void qlimit_setChargeInhibited(BOOL inhibited) {
     uint8_t val = inhibited ? 1 : 0;
     __attribute__((unused)) IOReturn status = smc_write_safe('CH0C', &val, 1);
+    QLog("smc_write_safe status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
+}
+
+static BOOL qlimit_isAccessoryChargeInhibited(void) {
+    uint8_t val = 0;
+    int32_t sz = sizeof(val);
+    if (smc_read_safe('AY1C', &val, &sz) != kIOReturnSuccess) return NO;
+    return val != 0;
+}
+static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
+    uint8_t val = inhibited ? 1 : 0;
+    __attribute__((unused)) IOReturn status = smc_write_safe('AY1C', &val, 1);
     QLog("smc_write_safe status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 }
 
@@ -143,11 +170,28 @@ static void qlimit_evaluateChargingState(void) {
     }
 }
 
+static void qlimit_evaluateAccessoryChargingState(void) {
+    BOOL isPresent = qlimit_isAccessoryConnected();
+
+    if (isPresent) {
+        BOOL isInhibited = qlimit_isAccessoryChargeInhibited();
+
+        QLog("Evaluating: Present=%s, Inhibited=%s", isPresent ? "YES" : "NO", isInhibited ? "YES" : "NO");
+
+        if (_qlimitShouldInhibitAccessoryCharging && !isInhibited) {
+            qlimit_setAccessoryChargeInhibited(YES);
+        } else if (!_qlimitShouldInhibitAccessoryCharging && isInhibited) {
+            qlimit_setAccessoryChargeInhibited(NO);
+        }
+    }
+}
+
 // ---- Callbacks ---------------------------------------------------------
 
 static void qlimit_powerSourceChangedCallback(void *refcon, io_service_t service, uint32_t messageType, void *messageArgument) {
     QLog("IOKit Power Event Fired: messageType = 0x%x", messageType);
     qlimit_evaluateChargingState();
+    qlimit_evaluateAccessoryChargingState();
 }
 
 static void qlimit_preferencesChangedCallback(CFNotificationCenterRef center,
@@ -206,5 +250,6 @@ static void qlimit_setupNotification(void) {
 
     dispatch_async(dispatch_get_main_queue(), ^{
         qlimit_evaluateChargingState();
+        qlimit_evaluateAccessoryChargingState();
     });
 }
