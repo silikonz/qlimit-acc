@@ -197,7 +197,7 @@ static void qlimit_evaluateAccessoryChargingState(void) {
         BOOL isInhibited = qlimit_isAccessoryChargeInhibited();
 
         QLog("Evaluating: Present=%s, Inhibited=%s", isPresent ? "YES" : "NO", isInhibited ? "YES" : "NO");
-        qlimit_numAccPorts();
+        qlimit_perTelemetry();
 
         if (_qlimitShouldInhibitAccessoryCharging && !isInhibited) {
             qlimit_setAccessoryChargeInhibited(YES);
@@ -205,7 +205,7 @@ static void qlimit_evaluateAccessoryChargingState(void) {
             qlimit_setAccessoryChargeInhibited(NO);
         }
     } else {
-        qlimit_numAccPorts();
+        qlimit_perTelemetry();
     }
 }
 
