@@ -68,11 +68,9 @@ static BOOL qlimit_isAdapterConnected(io_service_t service) {
     return NO;
 }
 
-static BOOL qlimit_isAccessoryConnected(void) {
-    uint8_t val = 0;
-    int32_t sz = sizeof(val);
-    if (smc_read_safe('AY1P', &val, &sz) != kIOReturnSuccess) return NO;
-    return val != 0;
+static BOOL qlimit_isAccessoryConnected(io_service_t service) {
+    NSNumber *detect = qlimit_getProperty(service, CFSTR("IOAccessoryDetect"));
+    return detect ? [detect boolValue] : NO;
 }
 
 // ---- Preferences ---------------------------------------------------------
@@ -106,6 +104,14 @@ static io_service_t qlimit_getPowerService(void) {
     return serv;
 }
 
+static io_service_t qlimit_getAccessoryService(void) {
+    static io_service_t serv = IO_OBJECT_NULL;
+    if (serv == IO_OBJECT_NULL) {
+        serv = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AWCAccessoryManager"));
+    }
+    return serv;
+}
+
 // ---- Control Primitives --------------------------------------------------
 
 static BOOL qlimit_isChargeInhibited(void) {
@@ -120,16 +126,25 @@ static void qlimit_setChargeInhibited(BOOL inhibited) {
     QLog("smc_write_safe status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 }
 
-static BOOL qlimit_isAccessoryChargeInhibited(void) {
-    uint8_t val = 0;
-    int32_t sz = sizeof(val);
-    if (smc_read_safe('AY1C', &val, &sz) != kIOReturnSuccess) return NO;
-    return val != 0;
+static BOOL qlimit_isAccessoryChargeInhibited(io_service_t service) {
+    NSNumber *val = qlimit_getProperty(service, CFSTR("IOAccessoryPowerMode"));
+    return val == 1 ? [val boolValue] : NO;
 }
 static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
-    uint8_t val = inhibited ? 1 : 0;
-    __attribute__((unused)) IOReturn status = smc_write_safe('AY1C', &val, 1);
-    QLog("smc_write_safe status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
+    io_service_t service = qlimit_getAccessoryService();
+    if (!service) {
+        QLog("Error: Unable to locate IOKit Accessory Service!");
+        return;
+    }
+
+     NSDictionary *props = @{
+        @"IOAccessoryActivePowerMode": inhibited ? 1 : 4,
+        @"IOAccessoryPowerMode": inhibited ? 1 : 4,
+    };
+
+    __attribute__((unused)) kern_return_t status = IORegistryEntrySetCFProperties(service, (__bridge CFDictionaryRef)props);
+    QLog("Writing IOKit properties status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
+
 }
 
 // ---- Decision logic ---------------------------------------------------------
@@ -171,10 +186,16 @@ static void qlimit_evaluateChargingState(void) {
 }
 
 static void qlimit_evaluateAccessoryChargingState(void) {
-    BOOL isPresent = qlimit_isAccessoryConnected();
+    io_service_t service = qlimit_getAccessoryService();
+    if (!service) {
+        QLog("Error evaluating charging state: No accessory service available.");
+        return;
+    }
+
+    BOOL isPresent = qlimit_isAccessoryConnected(service);
 
     if (isPresent) {
-        BOOL isInhibited = qlimit_isAccessoryChargeInhibited();
+        BOOL isInhibited = qlimit_isAccessoryChargeInhibited(service);
 
         QLog("Evaluating: Present=%s, Inhibited=%s", isPresent ? "YES" : "NO", isInhibited ? "YES" : "NO");
 
