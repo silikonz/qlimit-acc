@@ -126,25 +126,16 @@ static void qlimit_setChargeInhibited(BOOL inhibited) {
     QLog("smc_write_safe status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 }
 
-static BOOL qlimit_isAccessoryChargeInhibited(io_service_t service) {
-    NSNumber *val = qlimit_getProperty(service, CFSTR("IOAccessoryPowerMode"));
-    return [val integerValue] == 1;
+static BOOL qlimit_isAccessoryChargeInhibited(void) {
+    uint8_t val = 0;
+    int32_t sz = sizeof(val);
+    if (smc_read_safe('AY1C', &val, &sz) != kIOReturnSuccess) return NO;
+    return val != 0;
 }
 static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
-    io_service_t service = qlimit_getAccessoryService();
-    if (!service) {
-        QLog("Error: Unable to locate IOKit Accessory Service!");
-        return;
-    }
-
-     NSDictionary *props = @{
-        @"IOAccessoryActivePowerMode": inhibited ? @1 : @4,
-        @"IOAccessoryPowerMode": inhibited ? @1 : @4,
-    };
-
-    __attribute__((unused)) kern_return_t status = IORegistryEntrySetCFProperties(service, (__bridge CFDictionaryRef)props);
-    QLog("Writing IOKit properties status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
-
+    uint8_t val = inhibited ? 1 : 0;
+    __attribute__((unused)) IOReturn status = smc_write_safe('AY1C', &val, 1);
+    QLog("smc_write_safe for accessory status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 }
 
 // ---- Decision logic ---------------------------------------------------------
@@ -185,6 +176,14 @@ static void qlimit_evaluateChargingState(void) {
     }
 }
 
+static uint8_t qlimit_numAccPorts() {
+    uint8_t count = 0;
+    if (smc_read_n('AY-N', &count, 1) != kIOReturnSuccess)
+        count = 0;
+    QLog("Port count thru SMC: %d", count);
+    return count;
+}
+
 static void qlimit_evaluateAccessoryChargingState(void) {
     io_service_t service = qlimit_getAccessoryService();
     if (!service) {
@@ -195,15 +194,19 @@ static void qlimit_evaluateAccessoryChargingState(void) {
     BOOL isPresent = qlimit_isAccessoryConnected(service);
 
     if (isPresent) {
-        BOOL isInhibited = qlimit_isAccessoryChargeInhibited(service);
+
+        BOOL isInhibited = qlimit_isAccessoryChargeInhibited();
 
         QLog("Evaluating: Present=%s, Inhibited=%s", isPresent ? "YES" : "NO", isInhibited ? "YES" : "NO");
+        qlimit_numAccPorts();
 
         if (_qlimitShouldInhibitAccessoryCharging && !isInhibited) {
             qlimit_setAccessoryChargeInhibited(YES);
         } else if (!_qlimitShouldInhibitAccessoryCharging && isInhibited) {
             qlimit_setAccessoryChargeInhibited(NO);
         }
+    } else {
+        qlimit_numAccPorts();
     }
 }
 
