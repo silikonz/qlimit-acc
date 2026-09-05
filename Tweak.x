@@ -20,7 +20,7 @@ static const BOOL kQLimitDefaultShouldInhibitAccessoryCharging = NO;
 
 
 
-#define QLIMIT_DEBUG 0
+#define QLIMIT_DEBUG 1
 #if QLIMIT_DEBUG
     #define QLog(fmt, ...) \
         do { \
