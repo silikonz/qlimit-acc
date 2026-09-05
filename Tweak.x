@@ -134,8 +134,8 @@ static BOOL qlimit_isAccessoryChargeInhibited(void) {
 }
 static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
     uint8_t val = inhibited ? 1 : 0;
-    __attribute__((unused)) IOReturn status = smc_write_safe('AY1C', &val, 1);
-    QLog("smc_write_safe for accessory status 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
+    __attribute__((unused)) IOReturn status = smc_write_safe('CKRQ', &val, 1);
+    QLog("smc_write_safe for accessory CKRQ 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 }
 
 // ---- Decision logic ---------------------------------------------------------
@@ -176,10 +176,10 @@ static void qlimit_evaluateChargingState(void) {
     }
 }
 
-static uint8_t qlimit_numAccPorts() {
+static uint8_t qlimit_perTelemetry() {
     uint8_t count = 0;
-    kern_return_t kr = smc_read_n('AY-N', &count, 1);
-    QLog("Port count thru SMC: %d, with result: 0x%x", count, kr);
+    kern_return_t kr = smc_read_n('CKST', &count, 1);
+    QLog("SMC reading CKST: %d, with result: 0x%x", count, kr);
     return count;
 }
 
