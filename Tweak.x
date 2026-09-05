@@ -128,7 +128,7 @@ static void qlimit_setChargeInhibited(BOOL inhibited) {
 
 static BOOL qlimit_isAccessoryChargeInhibited(io_service_t service) {
     NSNumber *val = qlimit_getProperty(service, CFSTR("IOAccessoryPowerMode"));
-    return val == 1 ? [val boolValue] : NO;
+    return [val integerValue] == 1;
 }
 static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
     io_service_t service = qlimit_getAccessoryService();
@@ -138,8 +138,8 @@ static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
     }
 
      NSDictionary *props = @{
-        @"IOAccessoryActivePowerMode": inhibited ? 1 : 4,
-        @"IOAccessoryPowerMode": inhibited ? 1 : 4,
+        @"IOAccessoryActivePowerMode": inhibited ? @1 : @4,
+        @"IOAccessoryPowerMode": inhibited ? @1 : @4,
     };
 
     __attribute__((unused)) kern_return_t status = IORegistryEntrySetCFProperties(service, (__bridge CFDictionaryRef)props);
