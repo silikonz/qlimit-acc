@@ -129,13 +129,17 @@ static void qlimit_setChargeInhibited(BOOL inhibited) {
 static BOOL qlimit_isAccessoryChargeInhibited(void) {
     uint8_t val = 0;
     int32_t sz = sizeof(val);
-    if (smc_read_safe('AY1C', &val, &sz) != kIOReturnSuccess) return NO;
+    if (smc_read_safe('CKST', &val, &sz) != kIOReturnSuccess) return NO;
     return val != 0;
 }
 static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
     uint8_t val = inhibited ? 1 : 0;
     __attribute__((unused)) IOReturn status = smc_write_safe('CKRQ', &val, 1);
     QLog("smc_write_safe for accessory CKRQ 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
+
+    uint32_t val = inhibited ? 0x8 : 0;
+    __attribute__((unused)) IOReturn status2 = smc_write_safe('WAFC', &val, 1);
+    QLog("smc_write_safe for accessory WAFC 0x%x, inhibited = %s", status2, inhibited ? "YES" : "NO");
 }
 
 // ---- Decision logic ---------------------------------------------------------
