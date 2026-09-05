@@ -178,7 +178,7 @@ static void qlimit_evaluateChargingState(void) {
 
 static uint8_t qlimit_numAccPorts() {
     uint8_t count = 0;
-    kern_return_t kr = smc_read_n('AY-N', &count, 1)
+    kern_return_t kr = smc_read_n('AY-N', &count, 1);
     QLog("Port count thru SMC: %d, with result: 0x%x", count, kr);
     return count;
 }
