@@ -137,8 +137,8 @@ static void qlimit_setAccessoryChargeInhibited(BOOL inhibited) {
     __attribute__((unused)) IOReturn status = smc_write_safe('CKRQ', &val, 1);
     QLog("smc_write_safe for accessory CKRQ 0x%x, inhibited = %s", status, inhibited ? "YES" : "NO");
 
-    uint32_t val = inhibited ? 0x8 : 0;
-    __attribute__((unused)) IOReturn status2 = smc_write_safe('WAFC', &val, 1);
+    uint32_t val2 = inhibited ? 0x8 : 0;
+    __attribute__((unused)) IOReturn status2 = smc_write_safe('WAFC', &val2, 1);
     QLog("smc_write_safe for accessory WAFC 0x%x, inhibited = %s", status2, inhibited ? "YES" : "NO");
 }
 
